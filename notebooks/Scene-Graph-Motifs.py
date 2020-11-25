@@ -10,7 +10,7 @@
 # MAGIC %md ##Graph structure
 # MAGIC 
 # MAGIC - We want to extract the names of objects we see in the images ans use their id's as vertices (create a object_name2id dictionary)
-# MAGIC - For the same object category, we will have multiple id's, but the category is represented by only one vertex in the graph (coarse-graph representation);
+# MAGIC - For one object category, we will have multiple id's, but only one vertex in the graph (coarse-graph representation);
 # MAGIC - The edge properties are the names of the relations in each .json file; we extract them and store in triples (?) and create edge_name2id.
 
 # COMMAND ----------
@@ -115,10 +115,6 @@ def json_to_vertices_edges(graph_json):
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 # Pythonic way of doing it, must be converted to dataframe processing
 def parse_scene_graphs(scene_graphs_json, vertice_schema, edge_schema):
   
@@ -149,7 +145,13 @@ edge_schema = StructType([
 
 # COMMAND ----------
 
-scene_graphs = parse_scene_graphs(example_json, vertice_schema, edge_schema)
+# MAGIC %md ### TODO - add attribute, and types to edges, to the graph structure
+# MAGIC 
+# MAGIC We can do more interesting queries if the edges disclose what type/name the source and destination has. For instance, it is then possible to group the edges not by the ID by by which type of objects they are connected to, answering questions like how often is objects of type 'person' in the relation 'next-to' objects of type 'banana'.
+
+# COMMAND ----------
+
+scene_graphs = parse_scene_graphs(val_scene_data, vertice_schema, edge_schema)
 
 # COMMAND ----------
 
@@ -161,7 +163,52 @@ display(scene_graphs.edges)
 
 # COMMAND ----------
 
-
+# MAGIC %md ## Initial data analysis
 
 # COMMAND ----------
 
+# MAGIC %md ### Simple queries from OnTimeFlightPerformance example
+
+# COMMAND ----------
+
+print("Objects: {}".format(scene_graphs.vertices.count()))
+print("Relations: {}".format(scene_graphs.edges.count()))
+
+# COMMAND ----------
+
+display(scene_graphs.degrees.sort(["degree"],ascending=[0]).limit(20))
+
+# COMMAND ----------
+
+# MAGIC %md ### Finding motifs
+
+# COMMAND ----------
+
+motifs = scene_graphs.find("(a)-[ab]->(b); (b)-[bc]->(c)")
+
+display(motifs)
+
+# COMMAND ----------
+
+# MAGIC %md ### Object ranking using PageRank
+
+# COMMAND ----------
+
+# TODO - This does not really give us anything at the moment
+ranks = scene_graphs.pageRank(resetProbability=0.15, maxIter=10)
+
+# COMMAND ----------
+
+display(ranks.vertices.orderBy(['pagerank'],descending=[0]).limit(20))
+
+# COMMAND ----------
+
+# MAGIC %md ### Label propagation
+# MAGIC Using the Label Propagation Algorithm to do community detection does not make much sense for this application, but could be interesting nonetheless
+
+# COMMAND ----------
+
+
+label_prop_results = scene_graphs.labelPropagation(maxIter=10)
+
+display(label_prop_results.sort(['label'],ascending=[0]))
