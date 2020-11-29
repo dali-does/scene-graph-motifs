@@ -97,8 +97,8 @@ import json
 f_train = open("/dbfs/FileStore/shared_uploads/scenegraph_motifs/train_sceneGraphs.json")
 train_scene_data = json.load(f_train)
 
-f = open("/dbfs/FileStore/shared_uploads/scenegraph_motifs/val_sceneGraphs.json")
-val_scene_data = json.load(f)
+f_val = open("/dbfs/FileStore/shared_uploads/scenegraph_motifs/val_sceneGraphs.json")
+val_scene_data = json.load(f_val)
 
 # COMMAND ----------
 
@@ -106,12 +106,16 @@ val_scene_data = json.load(f)
 def json_to_vertices_edges(graph_json, include_object_attributes=False):
   vertices = []
   edges = []
+  obj_id_to_name = {}
   
   vertice_ids = graph_json['objects']
   for vertice_id in vertice_ids:
+   
     vertice_obj = graph_json['objects'][vertice_id]
     name = vertice_obj['name']
     vertices_data = [vertice_id, name]
+    if vertice_id not in obj_id_to_name:
+      obj_id_to_name[vertice_id] = name
     if include_object_attributes:
       attributes = vertice_obj['attributes']  
       vertices_data.append(attributes)      
@@ -121,8 +125,12 @@ def json_to_vertices_edges(graph_json, include_object_attributes=False):
         src = vertice_id
         dst = relation['object']
         name = relation['name']
-        edges.append((src, dst, name))
-        
+        edges.append([src, dst, name])
+  for i in range(len(edges)):
+    src_type = obj_id_to_name[edges[i][0]]
+    dst_type = obj_id_to_name[edges[i][1]]
+    edges[i].append(src_type)
+    edges[i].append(dst_type)
   return (vertices, edges)
 
 # COMMAND ----------
@@ -175,7 +183,8 @@ vertice_schema_with_attr  = StructType([
 ])
 
 edge_schema = StructType([
-  StructField("src", StringType(), False), StructField("dst", StringType(), False), StructField("relation_name", StringType(), False)
+  StructField("src", StringType(), False), StructField("dst", StringType(), False), StructField("relation_name", StringType(), False),
+  StructField("src_type", StringType(), False), StructField("dst_type", StringType(), False)
 ])
 
 # COMMAND ----------
@@ -263,3 +272,57 @@ display(ranks.vertices.orderBy(['pagerank'],descending=[0]).limit(20))
 label_prop_results = scene_graphs.labelPropagation(maxIter=10)
 
 display(label_prop_results.sort(['label'],ascending=[0]))
+
+# COMMAND ----------
+
+# MAGIC %md ### Finding most common attributes
+
+# COMMAND ----------
+
+# MAGIC %md ###Finding most common object pairs
+
+# COMMAND ----------
+
+topPairs = train_scene_graphs.edges.groupBy("src_type", "relation_name", "dst_type")
+display(topPairs.count().sort("count", ascending=False))
+
+# COMMAND ----------
+
+# MAGIC %md ### Finding most common relations
+# MAGIC 
+# MAGIC Could we categorise the edges according to what semantic function they play? For instance, filtering out all relations that are spatial (behind, to the left of, et c.). Suggested categories; spatial, actions, semantic relation
+
+# COMMAND ----------
+
+topPairs = train_scene_graphs.edges.groupBy("relation_name")
+display(topPairs.count().sort("count", ascending=False))
+
+# COMMAND ----------
+
+# MAGIC %md Filter out relations that begin with 'to the'
+
+# COMMAND ----------
+
+# Also possible to do:
+# from pyspark.sql.functions import udf
+#from pyspark.sql.types import BooleanType
+
+#filtered_df = spark_df.filter(udf(lambda target: target.startswith('good'), 
+#                                  BooleanType())(spark_df.target))
+
+topPairs = train_scene_graphs.edges.filter("relation_name NOT LIKE 'to the%'").groupBy("src_type", "relation_name", "dst_type")
+display(topPairs.count().sort("count", ascending=False))
+
+# COMMAND ----------
+
+# MAGIC %md #### TODO - How do we cluster all spatial relations?
+# MAGIC 
+# MAGIC "To the left/right of" does not nearly cover all spatial relations and going through them manually is a lot of work.
+
+# COMMAND ----------
+
+topPairs = train_scene_graphs.edges.groupBy("src_type", "relation_name", "dst_type")
+display(topPairs.count().sort("count", ascending=False))
+
+# COMMAND ----------
+
