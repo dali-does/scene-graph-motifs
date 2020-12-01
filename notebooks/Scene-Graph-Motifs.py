@@ -41,53 +41,6 @@ example_json_df.first()
 
 # COMMAND ----------
 
-dbutils.fs.ls("dbfs:/FileStore/shared_uploads/scenegraph_motifs/")
-
-# COMMAND ----------
-
-# Load the training data:
-######## throws an error:
-# Reload the page and try again. If the error persists, contact support. Reference error code: 73f0fdda29f9485aaa2ec67c7e881e68
-train_scene_data = spark.read.text("dbfs:/FileStore/shared_uploads/dali@cs.umu.se/train_sceneGraphs.json")
-
-# COMMAND ----------
-
-# MAGIC %scala
-# MAGIC val tr_sc = sc.textFile("dbfs:/FileStore/shared_uploads/dali@cs.umu.se/train_sceneGraphs.json")
-
-# COMMAND ----------
-
-# MAGIC %scala
-# MAGIC tr_sc.
-
-# COMMAND ----------
-
-train_scene_data.head(10)
-
-# COMMAND ----------
-
-# MAGIC %scala
-# MAGIC val val_scene_data = spark.read.json("dbfs:/FileStore/shared_uploads/scenegraph_motifs/val_sceneGraphs.json")
-
-# COMMAND ----------
-
-# still takes too long and fails
-val_scene_data = sqlContext.read.json("dbfs:/FileStore/shared_uploads/scenegraph_motifs/val_sceneGraphs.json")
-
-# COMMAND ----------
-
-val_scene_data.display()
-
-# COMMAND ----------
-
-val_scene_data.printSchema()
-
-# COMMAND ----------
-
-# MAGIC %md ### Parsing graph structure
-
-# COMMAND ----------
-
 from graphframes import *
 import json
 
@@ -99,6 +52,10 @@ train_scene_data = json.load(f_train)
 
 f_val = open("/dbfs/FileStore/shared_uploads/scenegraph_motifs/val_sceneGraphs.json")
 val_scene_data = json.load(f_val)
+
+# COMMAND ----------
+
+# MAGIC %md ### Parsing graph structure
 
 # COMMAND ----------
 
@@ -194,9 +151,12 @@ len(vertice_schema), len(vertice_schema_with_attr)
 
 # COMMAND ----------
 
-# MAGIC %md ### TODO - add types to edges in the graph structure
+# MAGIC %md ## We add attributes to vertices and types to edges in the graph structure
 # MAGIC 
-# MAGIC We can do more interesting queries if the edges disclose what type/name the source and destination has. For instance, it is then possible to group the edges not by the ID by by which type of objects they are connected to, answering questions like how often is objects of type 'person' in the relation 'next-to' objects of type 'banana'.
+# MAGIC 
+# MAGIC We can do more interesting queries if the edges disclose what type/name the source and destination has. For instance, it is then possible to group the edges not by the ID by by which type of objects they are connected to, answering questions like "How often are objects of type 'person' in the relation 'next-to' with objects of type 'banana'?".
+# MAGIC 
+# MAGIC If vertices have attributes, we can get more descriptive answers to our queries like "Objects of type 'person' are 15 times 'next-to' objects of type 'banana' ('yellow' 'small'); 10 times 'next-to' objects of type 'banana' ('green' 'banana')".
 
 # COMMAND ----------
 
@@ -276,6 +236,12 @@ display(label_prop_results.sort(['label'],ascending=[0]))
 # COMMAND ----------
 
 # MAGIC %md ### Finding most common attributes
+
+# COMMAND ----------
+
+# the attributes are sequences: we need to split them:
+topAttributes = train_scene_graphs.vertices.groupBy("attributes")
+display(topAttributes.count().sort("count", ascending=False))
 
 # COMMAND ----------
 
