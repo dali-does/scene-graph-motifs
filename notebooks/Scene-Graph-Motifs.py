@@ -119,18 +119,6 @@ vertice_schema = StructType([
   StructField("id", StringType(), False), StructField("object_name", StringType(), False)
 ])
 
-# vertices including attributes:
-# vertice_schema_with_attr  = StructType([
-#   StructField("id", StringType(), False), 
-#   StructField("object_name", StringType(), False), 
-#   # nested field with attributes (considering at most 3 attributes)
-#   StructField("attributes", StructType([
-#                StructField('attr_1', StringType(), True),
-#                StructField('attr_2', StringType(), True),
-#                StructField('attr_3', StringType(), True)
-#              ]), True)
-# ])
-
 # or better yet
 vertice_schema_with_attr  = StructType([
   StructField("id", StringType(), False), 
@@ -160,20 +148,21 @@ len(vertice_schema), len(vertice_schema_with_attr)
 
 # COMMAND ----------
 
-# scene_graphs = parse_scene_graphs(val_scene_data, vertice_schema, edge_schema)
+# TODO Perhaps merge train+val and produce results for all three (train, val, train+val)?
 
-# train_scene_graphs = parse_scene_graphs(train_scene_data, vertice_schema, edge_schema)
-train_scene_graphs = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
+# scene_graphs = parse_scene_graphs(val_scene_data, vertice_schema, edge_schema)
+#scene_graphs_val = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
+scene_graphs_train = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
 
 # COMMAND ----------
 
 # display(scene_graphs.vertices)
-display(train_scene_graphs.vertices)
+display(scene_graphs_train.vertices)
 
 # COMMAND ----------
 
 # display(scene_graphs.edges)
-display(train_scene_graphs.edges)
+display(scene_graphs_train.edges)
 
 # COMMAND ----------
 
@@ -188,13 +177,13 @@ display(train_scene_graphs.edges)
 # print("Objects: {}".format(scene_graphs.vertices.count()))
 # print("Relations: {}".format(scene_graphs.edges.count()))
 
-print("Objects: {}".format(train_scene_graphs.vertices.count()))
-print("Relations: {}".format(train_scene_graphs.edges.count()))
+print("Objects: {}".format(scene_graphs_train.vertices.count()))
+print("Relations: {}".format(scene_graphs_train.edges.count()))
 
 # COMMAND ----------
 
 # display(scene_graphs.degrees.sort(["degree"],ascending=[0]).limit(20))
-display(train_scene_graphs.degrees.sort(["degree"],ascending=[0]).limit(20))
+display(scene_graphs_train.degrees.sort(["degree"],ascending=[0]).limit(20))
 
 # COMMAND ----------
 
@@ -204,7 +193,7 @@ display(train_scene_graphs.degrees.sort(["degree"],ascending=[0]).limit(20))
 
 # motifs = scene_graphs.find("(a)-[ab]->(b); (b)-[bc]->(c)")
 
-motifs = train_scene_graphs.find("(a)-[ab]->(b); (b)-[bc]->(c)")
+motifs = scene_graphs_train.find("(a)-[ab]->(b); (b)-[bc]->(c)")
 
 display(motifs)
 
@@ -215,11 +204,13 @@ display(motifs)
 # COMMAND ----------
 
 # TODO - This does not really give us anything at the moment
-ranks = scene_graphs.pageRank(resetProbability=0.15, maxIter=10)
+scene_graph_without_attributes = GraphFrame(scene_graphs_train.vertices.drop('attributes'), scene_graphs_train.edges)
+ranks = scene_graph_without_attributes.pageRank(resetProbability=0.15, tol=0.01)
+display(ranks.vertices)
 
 # COMMAND ----------
 
-display(ranks.vertices.orderBy(['pagerank'],descending=[0]).limit(20))
+display(ranks.vertices.orderBy('pagerank', ascending=True).limit(100))
 
 # COMMAND ----------
 
@@ -229,7 +220,7 @@ display(ranks.vertices.orderBy(['pagerank'],descending=[0]).limit(20))
 # COMMAND ----------
 
 
-label_prop_results = scene_graphs.labelPropagation(maxIter=10)
+label_prop_results = scene_graphs_train.labelPropagation(maxIter=10)
 
 display(label_prop_results.sort(['label'],ascending=[0]))
 
@@ -240,7 +231,7 @@ display(label_prop_results.sort(['label'],ascending=[0]))
 # COMMAND ----------
 
 # the attributes are sequences: we need to split them:
-topAttributes = train_scene_graphs.vertices.groupBy("attributes")
+topAttributes = scene_graphs_train.vertices.groupBy("attributes") # try "explode"
 display(topAttributes.count().sort("count", ascending=False))
 
 # COMMAND ----------
@@ -249,7 +240,7 @@ display(topAttributes.count().sort("count", ascending=False))
 
 # COMMAND ----------
 
-topPairs = train_scene_graphs.edges.groupBy("src_type", "relation_name", "dst_type")
+topPairs = scene_graphs_train.edges.groupBy("src_type", "relation_name", "dst_type")
 display(topPairs.count().sort("count", ascending=False))
 
 # COMMAND ----------
@@ -260,7 +251,7 @@ display(topPairs.count().sort("count", ascending=False))
 
 # COMMAND ----------
 
-topPairs = train_scene_graphs.edges.groupBy("relation_name")
+topPairs = scene_graphs_train.edges.groupBy("relation_name")
 display(topPairs.count().sort("count", ascending=False))
 
 # COMMAND ----------
@@ -276,7 +267,7 @@ display(topPairs.count().sort("count", ascending=False))
 #filtered_df = spark_df.filter(udf(lambda target: target.startswith('good'), 
 #                                  BooleanType())(spark_df.target))
 
-topPairs = train_scene_graphs.edges.filter("relation_name NOT LIKE 'to the%'").groupBy("src_type", "relation_name", "dst_type")
+topPairs = scene_graphs_train.edges.filter("relation_name NOT LIKE 'to the%'").groupBy("src_type", "relation_name", "dst_type")
 display(topPairs.count().sort("count", ascending=False))
 
 # COMMAND ----------
@@ -287,7 +278,7 @@ display(topPairs.count().sort("count", ascending=False))
 
 # COMMAND ----------
 
-topPairs = train_scene_graphs.edges.groupBy("src_type", "relation_name", "dst_type")
+topPairs = scene_graphs_train.edges.groupBy("src_type", "relation_name", "dst_type")
 display(topPairs.count().sort("count", ascending=False))
 
 # COMMAND ----------
