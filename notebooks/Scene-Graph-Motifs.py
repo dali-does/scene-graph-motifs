@@ -166,6 +166,22 @@ display(scene_graphs_train.edges)
 
 # COMMAND ----------
 
+# MAGIC %md ### Merging vertices
+# MAGIC 
+# MAGIC We use object names instead of IDs as vertex identifier to merge all scene graphs and make it possible to analyse, e.g., how certain object types behave, and how connected components can be formed based on specific image contexts. This could allow us to detect e.g. connected components representing image categories such as `traffic` or `bathroom`.
+
+# COMMAND ----------
+
+merged_vertices = scene_graphs_train.vertices.drop('id')
+display(merged_vertices)
+
+# COMMAND ----------
+
+merged_edges = scene_graphs_train.edges.drop('src', 'dst')
+display(merged_edges)
+
+# COMMAND ----------
+
 # MAGIC %md ## Initial data analysis
 
 # COMMAND ----------
@@ -230,8 +246,16 @@ display(label_prop_results.sort(['label'],ascending=[0]))
 
 # COMMAND ----------
 
-# the attributes are sequences: we need to split them:
-topAttributes = scene_graphs_train.vertices.groupBy("attributes") # try "explode"
+from pyspark.sql.functions import explode
+# the attributes are sequences: we need to split them;
+# explode the attributes in the vertices graph:
+explodedAttributes = scene_graphs_train.vertices.select("id", "object_name", explode(scene_graphs_train.vertices.attributes).alias("attribute"))
+explodedAttributes.printSchema()
+explodedAttributes.show()
+
+# COMMAND ----------
+
+topAttributes = explodedAttributes.groupBy("attribute")
 display(topAttributes.count().sort("count", ascending=False))
 
 # COMMAND ----------
