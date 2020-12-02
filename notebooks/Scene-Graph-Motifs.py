@@ -149,10 +149,11 @@ len(vertice_schema), len(vertice_schema_with_attr)
 # COMMAND ----------
 
 # TODO Perhaps merge train+val and produce results for all three (train, val, train+val)?
-
-# scene_graphs = parse_scene_graphs(val_scene_data, vertice_schema, edge_schema)
-#scene_graphs_val = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
 scene_graphs_train = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
+
+# COMMAND ----------
+
+scene_graphs_val = parse_scene_graphs(val_scene_data, vertice_schema_with_attr, edge_schema)
 
 # COMMAND ----------
 
@@ -172,17 +173,68 @@ display(scene_graphs_train.edges)
 
 # COMMAND ----------
 
-merged_vertices = scene_graphs_train.vertices.drop('id')
+merged_vertices = scene_graphs_val.vertices.drop('id').selectExpr('object_name as id', 'attributes')
 display(merged_vertices)
 
 # COMMAND ----------
 
-merged_edges = scene_graphs_train.edges.drop('src', 'dst')
+merged_vertices.count()
+
+# COMMAND ----------
+
+merged_vertices = merged_vertices.distinct()
+display(merged_vertices)
+
+# COMMAND ----------
+
+merged_vertices.count()
+
+# COMMAND ----------
+
+merged_edges = scene_graphs_val.edges.drop('src', 'dst').selectExpr('src_type as src', 'dst_type as dst', 'relation_name as relation_name')
 display(merged_edges)
 
 # COMMAND ----------
 
+merged_edges.count()
+
+
+# COMMAND ----------
+
+scene_graphs_merged = GraphFrame(merged_vertices, merged_edges)
+
+
+# COMMAND ----------
+
+display(scene_graphs_merged.vertices)
+
+# COMMAND ----------
+
+display(scene_graphs_merged.edges)
+
+# COMMAND ----------
+
 # MAGIC %md ## Initial data analysis
+
+# COMMAND ----------
+
+# MAGIC %md ### Computing the Connected Components
+# MAGIC 
+# MAGIC Here we compute the connected components of the merged scene graphs. Before merging, the connected components should roughly correspond to the number of scene graphs, as they are made up of at least 1 connected component each. In the merged ones, we can expect a much smaller set of connected components, and we hypothesis that these could correspond to image scenery classes.
+
+# COMMAND ----------
+
+sc.setCheckpointDir("/tmp/scene-graph-motifs-connected-components")
+connected_components = scene_graphs_merged.connectedComponents()
+display(connected_components)
+
+# COMMAND ----------
+
+# MAGIC %md The number of connected components are:
+
+# COMMAND ----------
+
+connected_components.count()
 
 # COMMAND ----------
 
