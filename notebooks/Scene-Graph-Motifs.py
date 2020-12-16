@@ -173,7 +173,7 @@ display(scene_graphs_train.edges)
 
 # COMMAND ----------
 
-merged_vertices = scene_graphs_val.vertices.drop('id').selectExpr('object_name as id', 'attributes')
+merged_vertices = scene_graphs_val.vertices.drop('id').selectExpr('object_name as id')
 display(merged_vertices)
 
 # COMMAND ----------
@@ -234,7 +234,8 @@ display(connected_components)
 
 # COMMAND ----------
 
-connected_components.count()
+components_count = connected_components.groupBy('component')
+display(components_count.count().sort("count", ascending=False))
 
 # COMMAND ----------
 
@@ -312,6 +313,15 @@ display(topAttributes.count().sort("count", ascending=False))
 
 # COMMAND ----------
 
+# MAGIC %md ###Finding most common objects
+
+# COMMAND ----------
+
+topObjects = scene_graphs_train.vertices.groupBy("object_name")
+display(topObjects.count().sort("count", ascending=False))
+
+# COMMAND ----------
+
 # MAGIC %md ###Finding most common object pairs
 
 # COMMAND ----------
@@ -356,6 +366,10 @@ display(topPairs.count().sort("count", ascending=False))
 
 topPairs = scene_graphs_train.edges.groupBy("src_type", "relation_name", "dst_type")
 display(topPairs.count().sort("count", ascending=False))
+
+# COMMAND ----------
+
+# MAGIC %md TODO - Report statistics on attributes, similarly to how src/dst types are used above. Correlation metrics between vertex types and attributes?
 
 # COMMAND ----------
 
