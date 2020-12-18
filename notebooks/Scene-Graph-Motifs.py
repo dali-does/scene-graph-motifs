@@ -97,19 +97,22 @@ def parse_scene_graphs(scene_graphs_json, vertice_schema, edge_schema):
   
   vertices = []
   edges = []
+  obj_id_to_graph_id = {}
   
   # if vertice_schema has a field for attributes:
   include_object_attributes = len(vertice_schema) == 3
      
   for scene_graph_id in scene_graphs_json:
     vs, es = json_to_vertices_edges(scene_graphs_json[scene_graph_id], include_object_attributes)
+    for v in vs:
+      obj_id_to_graph_id[v[0]] = scene_graph_id
     vertices += vs
     edges += es
     
   vertices = spark.createDataFrame(vertices, vertice_schema)
   edges = spark.createDataFrame(edges, edge_schema)
   
-  return GraphFrame(vertices, edges)
+  return GraphFrame(vertices, edges), obj_id_to_graph_id
 
 # COMMAND ----------
 
@@ -149,11 +152,16 @@ len(vertice_schema), len(vertice_schema_with_attr)
 # COMMAND ----------
 
 # TODO Perhaps merge train+val and produce results for all three (train, val, train+val)?
-scene_graphs_train = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
+scene_graphs_train, train_obj_id_to_graph_id = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
 
 # COMMAND ----------
 
-scene_graphs_val = parse_scene_graphs(val_scene_data, vertice_schema_with_attr, edge_schema)
+scene_graphs_val, val_obj_id_to_graph_id = parse_scene_graphs(val_scene_data, vertice_schema_with_attr, edge_schema)
+
+# COMMAND ----------
+
+# for k, v in train_obj_id_to_graph_id.items():
+#   print(obj_id_to_name[])
 
 # COMMAND ----------
 
@@ -257,6 +265,8 @@ display(scene_graphs_train.degrees.sort(["degree"],ascending=[0]).limit(20))
 # COMMAND ----------
 
 # MAGIC %md ### Finding motifs
+# MAGIC 
+# MAGIC TODO - finding other interesting motifs that we can motivate from a semantic perspective, e.g. looking at triangles, or more complex child-parent tree relations (e.g. one parent with exactly two children)
 
 # COMMAND ----------
 
@@ -268,11 +278,24 @@ display(motifs)
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
 # MAGIC %md ### Object ranking using PageRank
+# MAGIC 
+# MAGIC TODO - fix pagerank in terms of performance. Perhaps remove spatial edges (e.g. to the left/right of)
 
 # COMMAND ----------
 
 # TODO - This does not really give us anything at the moment
+# TODO - create a dictionary "objectID to graphID (imageID)" in order to make the results explainable:
+#        display the object names within one image and their correspoinding pageranks.
+
 scene_graph_without_attributes = GraphFrame(scene_graphs_train.vertices.drop('attributes'), scene_graphs_train.edges)
 ranks = scene_graph_without_attributes.pageRank(resetProbability=0.15, tol=0.01)
 display(ranks.vertices)
