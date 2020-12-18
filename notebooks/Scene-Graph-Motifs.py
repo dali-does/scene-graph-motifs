@@ -60,7 +60,7 @@ val_scene_data = json.load(f_val)
 # COMMAND ----------
 
 # Pythonic way of doing it:
-def json_to_vertices_edges(graph_json, include_object_attributes=False):
+def json_to_vertices_edges(graph_json, scene_graph_id, include_object_attributes=False):
   vertices = []
   edges = []
   obj_id_to_name = {}
@@ -70,7 +70,7 @@ def json_to_vertices_edges(graph_json, include_object_attributes=False):
    
     vertice_obj = graph_json['objects'][vertice_id]
     name = vertice_obj['name']
-    vertices_data = [vertice_id, name]
+    vertices_data = [scene_graph_id, vertice_id, name]
     if vertice_id not in obj_id_to_name:
       obj_id_to_name[vertice_id] = name
     if include_object_attributes:
@@ -97,33 +97,34 @@ def parse_scene_graphs(scene_graphs_json, vertice_schema, edge_schema):
   
   vertices = []
   edges = []
-  obj_id_to_graph_id = {}
+#   obj_id_to_graph_id = {}
   
   # if vertice_schema has a field for attributes:
-  include_object_attributes = len(vertice_schema) == 3
+  include_object_attributes = len(vertice_schema) == 4
      
   for scene_graph_id in scene_graphs_json:
-    vs, es = json_to_vertices_edges(scene_graphs_json[scene_graph_id], include_object_attributes)
-    for v in vs:
-      obj_id_to_graph_id[v[0]] = scene_graph_id
+    vs, es = json_to_vertices_edges(scene_graphs_json[scene_graph_id], scene_graph_id, include_object_attributes)
+#     for v in vs:
+#       obj_id_to_graph_id[v[0]] = scene_graph_id
     vertices += vs
     edges += es
     
   vertices = spark.createDataFrame(vertices, vertice_schema)
   edges = spark.createDataFrame(edges, edge_schema)
   
-  return GraphFrame(vertices, edges), obj_id_to_graph_id
+  return GraphFrame(vertices, edges)
 
 # COMMAND ----------
 
 from pyspark.sql.types import StructType, StructField, ArrayType, IntegerType, StringType
 # Create schemas for scene graphs
 vertice_schema = StructType([
-  StructField("id", StringType(), False), StructField("object_name", StringType(), False)
+  StructField("graph_id", StringType(), False), StructField("id", StringType(), False), StructField("object_name", StringType(), False)
 ])
 
 # or better yet
 vertice_schema_with_attr  = StructType([
+  StructField("graph_id", StringType(), False), 
   StructField("id", StringType(), False), 
   StructField("object_name", StringType(), False), 
   # might want to check ArrayType examples here: https://sparkbyexamples.com/spark/spark-array-arraytype-dataframe-column/
@@ -152,16 +153,21 @@ len(vertice_schema), len(vertice_schema_with_attr)
 # COMMAND ----------
 
 # TODO Perhaps merge train+val and produce results for all three (train, val, train+val)?
-scene_graphs_train, train_obj_id_to_graph_id = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
+# scene_graphs_train, train_obj_id_to_graph_id = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
+# df_train_obj_id_to_graph_id = sc.parallelize(train_obj_id_to_graph_id.items()).toDF(['obj_id', 'graph_id'])
+
+scene_graphs_train = parse_scene_graphs(train_scene_data, vertice_schema_with_attr, edge_schema)
 
 # COMMAND ----------
 
-scene_graphs_val, val_obj_id_to_graph_id = parse_scene_graphs(val_scene_data, vertice_schema_with_attr, edge_schema)
+# scene_graphs_val, val_obj_id_to_graph_id = parse_scene_graphs(val_scene_data, vertice_schema_with_attr, edge_schema)
+# df_val_obj_id_to_graph_id = sc.parallelize(val_obj_id_to_graph_id.items()).toDF(['obj_id', 'graph_id'])
+
+scene_graphs_val = parse_scene_graphs(val_scene_data, vertice_schema_with_attr, edge_schema)
 
 # COMMAND ----------
 
-# for k, v in train_obj_id_to_graph_id.items():
-#   print(obj_id_to_name[])
+# df_train_obj_id_to_graph_id.count(), scene_graphs_train.vertices.count()
 
 # COMMAND ----------
 
@@ -210,7 +216,6 @@ merged_edges.count()
 # COMMAND ----------
 
 scene_graphs_merged = GraphFrame(merged_vertices, merged_edges)
-
 
 # COMMAND ----------
 
@@ -278,14 +283,6 @@ display(motifs)
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
 # MAGIC %md ### Object ranking using PageRank
 # MAGIC 
 # MAGIC TODO - fix pagerank in terms of performance. Perhaps remove spatial edges (e.g. to the left/right of)
@@ -297,6 +294,16 @@ display(motifs)
 #        display the object names within one image and their correspoinding pageranks.
 
 scene_graph_without_attributes = GraphFrame(scene_graphs_train.vertices.drop('attributes'), scene_graphs_train.edges)
+ranks = scene_graph_without_attributes.pageRank(resetProbability=0.15, tol=0.01)
+display(ranks.vertices)
+
+# COMMAND ----------
+
+display(ranks.vertices.orderBy('pagerank', ascending=False).limit(100))
+
+# COMMAND ----------
+
+scene_graph_without_attributes = GraphFrame(scene_graphs_train.vertices.drop('graph_id', 'attributes'), scene_graphs_train.edges)
 ranks = scene_graph_without_attributes.pageRank(resetProbability=0.15, tol=0.01)
 display(ranks.vertices)
 
